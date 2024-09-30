@@ -39,24 +39,27 @@ func main() {
 	r.StaticFile("/favicon.ico", "./web/favicon.ico")
 	r.LoadHTMLGlob("web/*.html")
 	// Маршрут для логин страницы
-	r.GET("/login", func(c *gin.Context) {
+	r.GET("/login.html", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "login.html", nil)
 	})
 	// Маршрут для аутентификации
 	r.POST("/api/signin", newHandler.SignIn)
+
+	r.GET("/", handler.Index)
+	r.GET("/index.html", handler.Index)
+	r.GET("api/nextdate", newHandler.GetNextDate)
 	// Применяем middleware для защищённых маршрутов
-	authRoutes := r.Group("/")
+	authRoutes := r.Group("/api")
 	authRoutes.Use(newHandler.AuthMiddleware())
 	{
-		authRoutes.GET("/", handler.Index)
-		authRoutes.GET("/api/task", newHandler.GetTasksId)
-		authRoutes.PUT("/api/task", newHandler.UpdateTask)
-		authRoutes.GET("/api/tasks", newHandler.GetTasks)
-		authRoutes.GET("api/nextdate", newHandler.GetNextDate)
-		authRoutes.POST("/api/task", newHandler.CreateTask)
-		authRoutes.POST("/api/task/done", newHandler.DoneTask)
-		authRoutes.DELETE("/api/task", newHandler.DeleteTask)
+		authRoutes.GET("/tasks", newHandler.GetTasks)
+		authRoutes.GET("/task", newHandler.GetTasksId)
+		authRoutes.PUT("/task", newHandler.UpdateTask)
+		authRoutes.POST("/task", newHandler.CreateTask)
+		authRoutes.DELETE("/task", newHandler.DeleteTask)
+		authRoutes.POST("/task/done", newHandler.DoneTask)
 	}
+
 	if err = r.Run(":" + cfg.Port); err != nil {
 		app.Log.Fatalf("Не удалось запустить сервер: %v", err)
 	}

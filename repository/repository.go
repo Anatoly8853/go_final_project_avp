@@ -29,17 +29,38 @@ func NewRepository(db *sqlx.DB, app *config.Application) *Repository {
 
 // NewOpenDB подключение к БД.
 func NewOpenDB(cfg config.Config) (db *sqlx.DB, err error) {
+	dbDir := filepath.Dir(cfg.DBFile)
+
+	// Проверяем, существует ли директория для базы данных
+	if _, err = os.Stat(dbDir); os.IsNotExist(err) {
+		// Создаем директорию, если она не существует
+		if err = os.MkdirAll(dbDir, os.ModePerm); err != nil {
+			return nil, fmt.Errorf("не удалось создать директорию %s: %w", dbDir, err)
+		}
+	}
+
+	// Проверяем, существует ли файл базы данных
+	if _, err = os.Stat(cfg.DBFile); os.IsNotExist(err) {
+		// Создаем файл базы данных, если он не существует
+		file, err := os.Create(cfg.DBFile)
+		if err != nil {
+			return nil, fmt.Errorf("не удалось создать файл базы данных %s: %w", cfg.DBFile, err)
+		}
+		defer file.Close() // Закрываем файл после создания
+	}
+
+	// Подключаемся к базе данных SQLite
 	db, err = sqlx.Connect("sqlite3", cfg.DBFile)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("не удалось подключиться к базе данных: %w", err)
 	}
 
 	return db, nil
 }
 
 // RunMigrations миграция таблиц в БД если отсутствуют.
-func (r *Repository) RunMigrations(config config.Config) error {
-	dbfile := "scheduler.db"
+func (r *Repository) RunMigrations(cfg config.Config) error {
+	dbfile := "app/scheduler.db"
 
 	appPath, err := os.Executable()
 	if err != nil {
@@ -47,14 +68,13 @@ func (r *Repository) RunMigrations(config config.Config) error {
 		return err
 	}
 
-	if len(config.DBFile) > 0 {
-		dbfile = config.DBFile
+	if len(cfg.DBFile) > 0 {
+		dbfile = cfg.DBFile
 	}
 
 	dbFile := filepath.Join(filepath.Dir(appPath), dbfile)
 	if _, err = os.Stat(dbFile); os.IsNotExist(err) {
-		r.app.Log.Infof("Файл базы данных не найден, создаём новый: %s", config.DBFile)
-		return nil
+		r.app.Log.Infof("Файл базы данных не найден, создаём новый: %s", cfg.DBFile)
 	}
 
 	var install bool
@@ -100,33 +120,30 @@ const getTasks = ` -- name: GetTasks
 // GetTasks получаем список ближайших задач.
 func (r *Repository) GetTasks() ([]tasks.Task, error) {
 	ctx := context.Background()
+
+	// Выполняем запрос к БД
 	res, err := r.db.QueryContext(ctx, getTasks, limit)
 	if err != nil {
-		r.app.Log.Debugf("GetTasks QueryContext: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("ошибка выполнения запроса QueryContext: %w", err)
 	}
-
 	defer res.Close()
 
-	var task []tasks.Task
+	var tasksList []tasks.Task
 	for res.Next() {
-		t := tasks.Task{}
-
-		err = res.Scan(&t.Id, &t.Date, &t.Title, &t.Comment, &t.Repeat)
-		if err != nil {
-			r.app.Log.Debugf("GetTasks Scan: %s", err)
-			return nil, err
+		var t tasks.Task
+		// Сканируем результат в структуру
+		if err = res.Scan(&t.Id, &t.Date, &t.Title, &t.Comment, &t.Repeat); err != nil {
+			return nil, fmt.Errorf("ошибка сканирования задачи res.Scan: %w", err)
 		}
-
-		task = append(task, t)
+		tasksList = append(tasksList, t)
 	}
 
+	// Проверяем на наличие ошибок после итерации
 	if err = res.Err(); err != nil {
-		r.app.Log.Debugf("GetTasks res.Err: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("ошибка после обработки результата res.Err: %w", err)
 	}
 
-	return task, nil
+	return tasksList, nil
 }
 
 const getTasksId = ` -- name: GetTasksId
@@ -142,8 +159,7 @@ func (r *Repository) GetTasksId(id string) (tasks.Task, error) {
 
 	ids, err := strconv.Atoi(id)
 	if err != nil {
-		r.app.Log.Debugf("GetTasksId не удается преобразовать id - %v : %v", id, err)
-		return t, err
+		return t, fmt.Errorf("не удается преобразовать id - %v : %v", id, err)
 	}
 
 	res := r.db.QueryRowContext(ctx, getTasksId, ids)
@@ -151,9 +167,7 @@ func (r *Repository) GetTasksId(id string) (tasks.Task, error) {
 	err = res.Scan(&t.Id, &t.Date, &t.Title, &t.Comment, &t.Repeat)
 
 	if t.Id == "" {
-		err = fmt.Errorf("задача не найдена c id - %v", id)
-		r.app.Log.Debugf("GetTasksId : %v", err)
-		return t, err
+		return t, fmt.Errorf("задача не найдена c id - %v", id)
 	}
 
 	return t, nil
@@ -170,14 +184,12 @@ func (r *Repository) CreateTask(task *tasks.Task) (int64, error) {
 	ctx := context.Background()
 	res, err := r.db.ExecContext(ctx, createTask, task.Date, task.Title, task.Comment, task.Repeat)
 	if err != nil {
-		r.app.Log.Debugf("CreateTask ExecContext: %s", err)
-		return 0, err
+		return 0, fmt.Errorf("ошибка выполнения запроса  ExecContext: %s", err)
 	}
 
 	id, err := res.LastInsertId()
 	if err != nil {
-		r.app.Log.Debugf("CreateTask res.LastInsertId(): %s", err)
-		return 0, err
+		return 0, fmt.Errorf("ошибка нет id res.LastInsertId(): %s", err)
 	}
 
 	return id, nil
@@ -188,6 +200,9 @@ func (r *Repository) GetSearch(search string) ([]tasks.Task, error) {
 	ctx := context.Background()
 
 	// Формируем запрос
+	//WHERE 1=1 является трюком для упрощения добавления дополнительных условий в запрос
+	//Здесь, если условия добавляются динамически, они всегда будут присоединены
+	//через AND, что упрощает процесс формирования запросов.
 	query := "SELECT id, date, title, comment, repeat FROM scheduler WHERE 1=1"
 	var args []interface{}
 
@@ -207,16 +222,14 @@ func (r *Repository) GetSearch(search string) ([]tasks.Task, error) {
 	}
 
 	// Добавляем сортировку по дате
-	query += " ORDER BY date ASC"
+	query += " ORDER BY date ASC LIMIT ?"
 
-	query += " LIMIT ?"
 	args = append(args, limit)
 
 	// Выполнение запроса
 	res, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		r.app.Log.Debugf("GetSearch QueryContext Ошибка выполнения запроса: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("ошибка выполнения запроса QueryContext: %w", err)
 	}
 	defer res.Close()
 
@@ -225,8 +238,7 @@ func (r *Repository) GetSearch(search string) ([]tasks.Task, error) {
 	for res.Next() {
 		var t tasks.Task
 		if err = res.Scan(&t.Id, &t.Date, &t.Title, &t.Comment, &t.Repeat); err != nil {
-			r.app.Log.Debugf("GetSearch res.Scan Ошибка обработки результата: %s", err)
-			return nil, err
+			return nil, fmt.Errorf("ошибка сканирования задачи res.Scan: %w", err)
 		}
 		task = append(task, t)
 	}
@@ -237,8 +249,7 @@ func (r *Repository) GetSearch(search string) ([]tasks.Task, error) {
 	}
 
 	if err = res.Err(); err != nil {
-		r.app.Log.Debugf("GetSearch res.Err: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("ошибка после обработки результата res.Err: %w", err)
 	}
 
 	return task, nil
@@ -253,13 +264,25 @@ const updateTask = ` -- name: UpdateTask
     WHERE id = $5
 	`
 
-// UpdateTask обновляем данные в бд.
+// UpdateTask обновляет данные в БД, если задача с таким ID существует.
 func (r *Repository) UpdateTask(task *tasks.Task) error {
 	ctx := context.Background()
-	_, err := r.db.ExecContext(ctx, updateTask, task.Date, task.Title, task.Comment, task.Repeat, task.Id)
+
+	// Выполняем запрос на обновление
+	result, err := r.db.ExecContext(ctx, updateTask, task.Date, task.Title, task.Comment, task.Repeat, task.Id)
 	if err != nil {
-		r.app.Log.Debugf("UpdateTask ExecContext: %s", err)
-		return err
+		return fmt.Errorf("ошибка выполнения запроса ExecContext: %w", err)
+	}
+
+	// Проверяем количество затронутых строк
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("ошибка получения затронутых строк: %w", err)
+	}
+
+	// Если ни одна строка не была обновлена, возвращаем ошибку
+	if rowsAffected == 0 {
+		return fmt.Errorf("задача с id %d не найдена", task.Id)
 	}
 
 	return nil
@@ -274,10 +297,19 @@ const doneTask = ` -- name: DoneTask
 // DoneTask отметка о выполнении.
 func (r *Repository) DoneTask(taskDate string, id string) error {
 	ctx := context.Background()
-	_, err := r.db.ExecContext(ctx, doneTask, taskDate, id)
+	result, err := r.db.ExecContext(ctx, doneTask, taskDate, id)
 	if err != nil {
-		r.app.Log.Debugf("DoneTask ExecContext: %s", err)
-		return err
+		return fmt.Errorf("ошибка выполнения запроса ExecContext: %w", err)
+	}
+	// Проверяем количество затронутых строк
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("ошибка получения затронутых строк: %w", err)
+	}
+
+	// Если ни одна строка не была обновлена, возвращаем ошибку
+	if rowsAffected == 0 {
+		return fmt.Errorf("задача с id %d не найдена", id)
 	}
 
 	return nil
@@ -294,25 +326,21 @@ func (r *Repository) DeleteTask(id string) error {
 
 	ids, err := strconv.Atoi(id)
 	if err != nil {
-		r.app.Log.Debugf("GetTasksId не удается преобразовать id - %v : %v", id, err)
-		return err
+		return fmt.Errorf("не удается преобразовать id - %v : %v", id, err)
 	}
 
 	res, err := r.db.ExecContext(ctx, deleteTask, ids)
 	if err != nil {
-		r.app.Log.Debugf("DeleteTask ExecContext: %s", err)
-		return err
+		return fmt.Errorf("ошибка выполнения запроса ExecContext: %w", err)
 	}
 
 	count, err := res.RowsAffected()
 	if err != nil {
-		r.app.Log.Debugf("DeleteTask res.RowsAffected(): %s", err)
-		return err
+		return fmt.Errorf("ошибка res.RowsAffected(): %s", err)
 	}
 
 	if count == 0 {
-		r.app.Log.Debug("DeleteTask нет такого id:", id)
-		return err
+		return fmt.Errorf("ошибка нет такого id: %v", id)
 	}
 
 	return nil

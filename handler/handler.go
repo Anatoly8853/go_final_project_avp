@@ -6,6 +6,8 @@ import (
 	"go_final_project_avp/repository"
 	"go_final_project_avp/tasks"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -31,23 +33,24 @@ func (h *Handler) GetTasks(c *gin.Context) {
 	repoTasks, err := h.repo.GetTasks()
 	if err != nil {
 		h.app.Log.Debugf("GetTasks repoTasks: %v", err)
-		c.JSON(http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ошибка вывода данных"})
 		return
 	}
 
-	if search != "" {
+	// Убираем все пробелы с начала и конца строки
+	trimmed := strings.TrimSpace(search)
+	if len(trimmed) > 0 {
 		repoTasks, err = h.repo.GetSearch(search)
 		if err != nil {
 			h.app.Log.Debugf("GetTasks repoTasks: %v", err)
-			c.JSON(http.StatusInternalServerError, err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ошибка поиска"})
 			return
 		}
 	}
 
-	if len(repoTasks) == 0 {
-		h.app.Log.Debug("GetTasks нет данных для отображения")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Нет данных для отображения"})
-		return
+	// Если список задач пустой, возвращаем пустой слайс
+	if repoTasks == nil {
+		repoTasks = []tasks.Task{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"tasks": repoTasks})
@@ -74,12 +77,14 @@ func (h *Handler) GetNextDate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Некорректная дата 'now', ожидается формат 20060102"})
 		return
 	}
+	// Сбрасываем время
+	nowDate := tasks.TruncateToDate(now)
 
 	// Вызов функции NextDate для вычисления следующей даты
-	nextDate, err := tasks.NextDate(now, dateStr, repeat)
+	nextDate, err := tasks.NextDate(nowDate, dateStr, repeat)
 	if err != nil {
 		h.app.Log.Debugf("GetNextDate tasks.NextDate правило повторения указано в неправильном формате: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "правило повторения указано в неправильном формате"})
 		return
 	}
 
@@ -89,7 +94,6 @@ func (h *Handler) GetNextDate(c *gin.Context) {
 	_, err = c.Writer.Write([]byte(nextDate))
 	if err != nil {
 		h.app.Log.Debug("GetNextDate Ошибка при отправке ответа")
-		c.String(http.StatusInternalServerError, "ошибка при отправке ответа")
 	}
 }
 
@@ -105,28 +109,20 @@ func (h *Handler) CreateTask(c *gin.Context) {
 	}
 
 	// Валидация даты
-	if _, err := time.Parse(tasks.TimeFormat, newTask.Date); err != nil {
+	if err := tasks.ValidateAndSetDate(newTask, time.Now()); err != nil {
 		h.app.Log.Debugf("CreateTask дата представлена в формате, отличном от 20060102: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "дата представлена в формате, отличном от 20060102"})
-		return
-	}
-
-	// Вызов функции NextDate для вычисления следующей даты
-	_, err := tasks.NextDate(time.Now(), newTask.Date, newTask.Repeat)
-	if err != nil {
-		h.app.Log.Debugf("GetNextDate tasks.NextDate правило повторения указано в неправильном формате: %v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "правило повторения указано в неправильном формате"})
 		return
 	}
 
 	id, err := h.repo.CreateTask(newTask)
 	if err != nil {
 		h.app.Log.Debugf("CreateTask repo.CreateTask ошибка добавления в бд: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "ошибка добавления"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Не указан заголовок задачи"})
 	}
 
 	// Ответ в формате JSON
-	c.JSON(http.StatusOK, gin.H{"id": id})
+	c.JSON(http.StatusOK, gin.H{"id": strconv.Itoa(int(id))})
 
 }
 
@@ -142,7 +138,7 @@ func (h *Handler) GetTasksId(c *gin.Context) {
 	repoTasks, err := h.repo.GetTasksId(id)
 	if err != nil {
 		h.app.Log.Debugf("GetTasks repoTasks: %v", err)
-		c.JSON(http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "нет задачи с таким id"})
 		return
 	}
 
@@ -166,9 +162,11 @@ func (h *Handler) UpdateTask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "дата представлена в формате, отличном от 20060102"})
 		return
 	}
+	// Сбрасываем время
+	nowDate := tasks.TruncateToDate(time.Now())
 
 	// Вызов функции NextDate для вычисления следующей даты
-	_, err = tasks.NextDate(time.Now(), newTask.Date, newTask.Repeat)
+	_, err = tasks.NextDate(nowDate, newTask.Date, newTask.Repeat)
 	if err != nil {
 		h.app.Log.Debugf("UpdateTask tasks.NextDate правило повторения указано в неправильном формате: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "правило повторения указано в неправильном формате"})
@@ -179,13 +177,14 @@ func (h *Handler) UpdateTask(c *gin.Context) {
 	if err != nil {
 		h.app.Log.Debugf("UpdateTask repo.UpdateTask ошибка добавления в бд: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "задача не найдена"})
+		return
 	}
 
 	// Ответ в формате JSON
 	c.JSON(http.StatusOK, gin.H{})
 }
 
-// DoneTask обновляем данные задачи
+// DoneTask обновляем данные задачи.
 func (h *Handler) DoneTask(c *gin.Context) {
 	id := c.Query("id")
 	if id == "" {
@@ -197,7 +196,7 @@ func (h *Handler) DoneTask(c *gin.Context) {
 	newTask, err := h.repo.GetTasksId(id)
 	if err != nil {
 		h.app.Log.Debugf("DoneTask repo.GetTasksId: %v", err)
-		c.JSON(http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusNotFound, gin.H{"error": "Задача не найдена"})
 		return
 	}
 
@@ -205,7 +204,7 @@ func (h *Handler) DoneTask(c *gin.Context) {
 		err = h.repo.DeleteTask(newTask.Id)
 		if err != nil {
 			h.app.Log.Debugf("DoneTask repoTasks: %v", err)
-			c.JSON(http.StatusInternalServerError, err.Error())
+			c.JSON(http.StatusNotFound, gin.H{"error": "Задача не найдена"})
 			return
 		}
 		// Ответ в формате JSON
@@ -213,8 +212,11 @@ func (h *Handler) DoneTask(c *gin.Context) {
 		return
 	}
 
+	// Сбрасываем время
+	nowDate := tasks.TruncateToDate(time.Now())
+
 	// Вызов функции NextDate для вычисления следующей даты
-	nextDate, err := tasks.NextDate(time.Now(), newTask.Date, newTask.Repeat)
+	nextDate, err := tasks.NextDate(nowDate, newTask.Date, newTask.Repeat)
 	if err != nil {
 		h.app.Log.Debugf("UpdateTask tasks.NextDate правило повторения указано в неправильном формате: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "правило повторения указано в неправильном формате"})
@@ -224,7 +226,8 @@ func (h *Handler) DoneTask(c *gin.Context) {
 	err = h.repo.DoneTask(nextDate, newTask.Id)
 	if err != nil {
 		h.app.Log.Debugf("UpdateTask repo.UpdateTask ошибка добавления в бд: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "задача не найдена"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Задача не найдена"})
+		return
 	}
 
 	// Ответ в формате JSON
@@ -242,7 +245,7 @@ func (h *Handler) DeleteTask(c *gin.Context) {
 	err := h.repo.DeleteTask(id)
 	if err != nil {
 		h.app.Log.Debugf("DeleteTask repoTasks: %v", err)
-		c.JSON(http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusNotFound, gin.H{"error": "Задача не найдена"})
 		return
 	}
 	// Ответ в формате JSON

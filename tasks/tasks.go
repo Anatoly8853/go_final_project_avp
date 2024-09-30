@@ -23,7 +23,60 @@ type Task struct {
 
 // parseDate парсинг даты в формате 20060102.
 func parseDate(dateStr string) (time.Time, error) {
+	if dateStr == "" {
+		return time.Now(), nil // если дата не указана, берём сегодняшнее число
+	}
 	return time.Parse(TimeFormat, dateStr)
+}
+
+// TruncateToDate сбрасывает время для переданной даты, оставляя только год, месяц и день.
+func TruncateToDate(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
+// ValidateAndSetDate валидация даты и установка правильной даты для новой задачи.
+func ValidateAndSetDate(task *Task, now time.Time) error {
+	// Проверяем обязательное поле title
+	if task.Title == "" {
+		return fmt.Errorf("Поле 'title' обязательно для заполнения")
+	}
+
+	// Если дата не указана, используем сегодняшнюю
+	if task.Date == "" {
+		task.Date = now.Format(TimeFormat)
+	}
+
+	// Парсим дату
+	date, err := parseDate(task.Date)
+	if err != nil {
+		return fmt.Errorf("некорректная дата: %v", err)
+	}
+
+	// Сбрасываем время для now и date, оставляя только даты
+	nowDate := TruncateToDate(now)
+	dateOnly := TruncateToDate(date)
+
+	// Если дата меньше текущего дня и нет правила повторения, устанавливаем сегодняшнюю дату
+	if dateOnly.Before(nowDate) && task.Repeat == "" {
+		task.Date = nowDate.Format(TimeFormat)
+
+	} else if dateOnly.Before(nowDate) && task.Repeat != "" {
+		// Если дата меньше текущего дня и правило повторения указано, вычисляем следующую дату
+		nextDate, err := NextDate(nowDate, task.Date, task.Repeat)
+		if err != nil {
+			return fmt.Errorf("Ошибка вычисления следующей даты: %v", err)
+		}
+		task.Date = nextDate
+
+	} else if dateOnly.Equal(nowDate) {
+		// Если дата совпадает с сегодняшним днём, правило повторения не обрабатываем
+		task.Date = nowDate.Format(TimeFormat)
+	} else {
+		// Если дата валидна и больше текущей, просто форматируем её в нужный формат
+		task.Date = dateOnly.Format(TimeFormat)
+	}
+
+	return nil
 }
 
 // nextDayDate следующая дата по дням.
@@ -109,7 +162,6 @@ func NextDate(now time.Time, dateStr string, repeat string) (string, error) {
 
 	if repeat == "" {
 		return date.Format(TimeFormat), nil
-		//return "", errors.New("пустое правило повторения")
 	}
 
 	switch {
