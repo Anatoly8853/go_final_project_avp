@@ -38,7 +38,7 @@ func TruncateToDate(t time.Time) time.Time {
 func ValidateAndSetDate(task *Task, now time.Time) error {
 	// Проверяем обязательное поле title
 	if task.Title == "" {
-		return fmt.Errorf("Поле 'title' обязательно для заполнения")
+		return fmt.Errorf("поле 'title' обязательно для заполнения")
 	}
 
 	// Если дата не указана, используем сегодняшнюю
@@ -64,7 +64,7 @@ func ValidateAndSetDate(task *Task, now time.Time) error {
 		// Если дата меньше текущего дня и правило повторения указано, вычисляем следующую дату
 		nextDate, err := NextDate(nowDate, task.Date, task.Repeat)
 		if err != nil {
-			return fmt.Errorf("Ошибка вычисления следующей даты: %v", err)
+			return fmt.Errorf("ошибка вычисления следующей даты: %v", err)
 		}
 		task.Date = nextDate
 

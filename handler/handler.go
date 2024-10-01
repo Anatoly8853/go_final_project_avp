@@ -1,14 +1,16 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
 	"go_final_project_avp/config"
 	"go_final_project_avp/repository"
 	"go_final_project_avp/tasks"
+
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Handler struct {
@@ -97,7 +99,7 @@ func (h *Handler) GetNextDate(c *gin.Context) {
 	}
 }
 
-// CreateTask добавляем задачи
+// CreateTask добавляем задачи.
 func (h *Handler) CreateTask(c *gin.Context) {
 	var newTask *tasks.Task
 
@@ -145,7 +147,7 @@ func (h *Handler) GetTasksId(c *gin.Context) {
 	c.JSON(http.StatusOK, repoTasks)
 }
 
-// UpdateTask обновляем данные после изменения
+// UpdateTask обновляем данные после изменения.
 func (h *Handler) UpdateTask(c *gin.Context) {
 	var newTask *tasks.Task
 

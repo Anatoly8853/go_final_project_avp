@@ -2,10 +2,11 @@ package handler
 
 import (
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"time"
+
+	"github.com/dgrijalva/jwt-go"
+	"github.com/gin-gonic/gin"
 )
 
 // TokenTimeHour время жизни токена.
@@ -65,7 +66,6 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 		if err != nil {
 			h.app.Log.Debugf("AuthMiddleware Токен отсутствует: %v", err)
 			// Перенаправляем на страницу логина
-			//c.Redirect(http.StatusFound, "/login.html")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Токен отсутствует"})
 			c.Abort()
 			return
@@ -85,7 +85,6 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 		if err != nil || !token.Valid {
 			h.app.Log.Debugf("AuthMiddleware Неверный токен: %v", err)
 			// Перенаправляем на страницу логина
-			//c.Redirect(http.StatusFound, "/login.html")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Неверный токен"})
 			c.Abort()
 			return
@@ -95,7 +94,6 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
 			h.app.Log.Debugf("AuthMiddleware Неверный формат claims")
-			//c.Redirect(http.StatusFound, "/login.html")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Неверный формат claims"})
 			c.Abort()
 			return
@@ -104,7 +102,6 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 		passwordHash, ok := claims["password_hash"].(string)
 		if !ok {
 			h.app.Log.Debugf("AuthMiddleware Отсутствует хэш пароля в токене")
-			//c.Redirect(http.StatusFound, "/login.html")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Отсутствует хэш пароля в токене"})
 			c.Abort()
 			return
@@ -114,12 +111,10 @@ func (h *Handler) AuthMiddleware() gin.HandlerFunc {
 		currentPasswordHash := fmt.Sprintf("%x", h.config.Password)
 		if passwordHash != currentPasswordHash {
 			h.app.Log.Debugf("AuthMiddleware Несоответствие хэша пароля")
-			//c.Redirect(http.StatusFound, "/login.html")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Несоответствие хэша пароля"})
 			c.Abort()
 			return
 		}
-
 		// Если токен валиден и хэш пароля совпадает, продолжаем выполнение запроса
 		c.Next()
 	}
