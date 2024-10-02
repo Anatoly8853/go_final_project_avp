@@ -1,16 +1,19 @@
 package repository
 
 import (
+	"database/sql"
+	"go_final_project_avp/internal/config"
+	"go_final_project_avp/internal/tasks"
+
 	"context"
 	"fmt"
-	"github.com/jmoiron/sqlx"
-	_ "github.com/mattn/go-sqlite3"
-	"go_final_project_avp/config"
-	"go_final_project_avp/tasks"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/jmoiron/sqlx"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type Repository struct {
@@ -46,7 +49,12 @@ func NewOpenDB(cfg config.Config) (db *sqlx.DB, err error) {
 		if err != nil {
 			return nil, fmt.Errorf("не удалось создать файл базы данных %s: %w", cfg.DBFile, err)
 		}
-		defer file.Close() // Закрываем файл после создания
+		defer func(file *os.File) {
+			err = file.Close()
+			if err != nil {
+
+			}
+		}(file) // Закрываем файл после создания
 	}
 
 	// Подключаемся к базе данных SQLite
@@ -126,7 +134,12 @@ func (r *Repository) GetTasks() ([]tasks.Task, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ошибка выполнения запроса QueryContext: %w", err)
 	}
-	defer res.Close()
+	defer func(res *sql.Rows) {
+		err = res.Close()
+		if err != nil {
+
+		}
+	}(res)
 
 	var tasksList []tasks.Task
 	for res.Next() {
@@ -231,7 +244,12 @@ func (r *Repository) GetSearch(search string) ([]tasks.Task, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ошибка выполнения запроса QueryContext: %w", err)
 	}
-	defer res.Close()
+	defer func(res *sql.Rows) {
+		err = res.Close()
+		if err != nil {
+
+		}
+	}(res)
 
 	var task []tasks.Task // Инициализация пустого слайса
 

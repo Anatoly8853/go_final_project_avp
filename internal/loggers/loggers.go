@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/gookit/slog"
@@ -60,7 +61,16 @@ func getFunctionName(pc uintptr) string {
 	}
 
 	// Извлекаем только короткое имя функции
-	return filepath.Base(fn.Name())
+	//return filepath.Base(fn.Name())
+	fullName := fn.Name()
+	parts := strings.Split(fullName, "/")
+	shortName := parts[len(parts)-1]
+
+	if dotIndex := strings.LastIndex(shortName, "."); dotIndex != -1 {
+		shortName = shortName[dotIndex+1:]
+	}
+
+	return shortName
 }
 
 // SetupLogger настраивает и возвращает логгер.
