@@ -30,10 +30,10 @@ func main() {
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
-	r.Static("/css", "./web/css")
-	r.Static("/js", "./web/js")
-	r.StaticFile("/favicon.ico", "./web/favicon.ico")
-	r.LoadHTMLGlob("web/*.html")
+	r.Static("/css", "internal/web/css")
+	r.Static("/js", "internal/web/js")
+	r.StaticFile("/favicon.ico", "internal/web/favicon.ico")
+	r.LoadHTMLGlob("internal/web/*.html")
 	// Маршрут для логина страницы
 	r.GET("/login.html", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "login.html", nil)
