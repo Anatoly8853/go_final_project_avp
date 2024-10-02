@@ -1,9 +1,10 @@
 package main
 
 import (
-	"go_final_project_avp/config"
-	"go_final_project_avp/handler"
-	"go_final_project_avp/repository"
+	"go_final_project_avp/internal/config"
+	"go_final_project_avp/internal/handler"
+	"go_final_project_avp/internal/repository"
+
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,11 +19,6 @@ func main() {
 	if err != nil {
 		app.Log.Fatalf("Не удалось подключиться к базе данных: %v", err)
 	}
-	/*
-		defer func(db *sqlx.DB) {
-			_ = db.Close()
-		}(db)
-	*/
 
 	repo := repository.NewRepository(db, app)
 
@@ -38,7 +34,7 @@ func main() {
 	r.Static("/js", "./web/js")
 	r.StaticFile("/favicon.ico", "./web/favicon.ico")
 	r.LoadHTMLGlob("web/*.html")
-	// Маршрут для логин страницы
+	// Маршрут для логина страницы
 	r.GET("/login.html", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "login.html", nil)
 	})

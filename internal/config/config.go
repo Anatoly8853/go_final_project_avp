@@ -1,9 +1,10 @@
 package config
 
 import (
+	"go_final_project_avp/internal/loggers"
+
 	"github.com/gookit/slog"
 	"github.com/spf13/viper"
-	"go_final_project_avp/loggers"
 )
 
 type Application struct {

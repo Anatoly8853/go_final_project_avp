@@ -1,9 +1,9 @@
 package handler
 
 import (
-	"go_final_project_avp/config"
-	"go_final_project_avp/repository"
-	"go_final_project_avp/tasks"
+	"go_final_project_avp/internal/config"
+	"go_final_project_avp/internal/repository"
+	"go_final_project_avp/internal/tasks"
 
 	"net/http"
 	"strconv"
