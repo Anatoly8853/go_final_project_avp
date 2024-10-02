@@ -68,7 +68,7 @@ func NewOpenDB(cfg config.Config) (db *sqlx.DB, err error) {
 
 // RunMigrations миграция таблиц в БД если отсутствуют.
 func (r *Repository) RunMigrations(cfg config.Config) error {
-	dbfile := "app/scheduler.db"
+	dbfile := "internal/app/scheduler.db"
 
 	appPath, err := os.Executable()
 	if err != nil {
