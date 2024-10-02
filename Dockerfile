@@ -1,4 +1,4 @@
-FROM golang:1.22.0
+FROM golang:1.23.2
 
 # Определяем переменные окружения
 ENV TODO_PORT=7540
