@@ -1,6 +1,7 @@
 package handler
 
 import (
+	slogavp "github.com/Anatoly8853/slog-avp/v2"
 	"go_final_project_avp/internal/config"
 	"go_final_project_avp/internal/repository"
 	"go_final_project_avp/internal/tasks"
@@ -15,11 +16,11 @@ import (
 
 type Handler struct {
 	config config.Config
-	app    *config.Application
+	app    *slogavp.Application
 	repo   *repository.Repository
 }
 
-func NewHandler(config config.Config, repo *repository.Repository, app *config.Application) *Handler {
+func NewHandler(config config.Config, repo *repository.Repository, app *slogavp.Application) *Handler {
 	return &Handler{config: config, repo: repo, app: app}
 }
 
