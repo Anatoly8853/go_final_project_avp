@@ -1,6 +1,7 @@
 package main
 
 import (
+	slogavp "github.com/Anatoly8853/slog-avp/v2"
 	"go_final_project_avp/internal/config"
 	"go_final_project_avp/internal/handler"
 	"go_final_project_avp/internal/repository"
@@ -12,7 +13,9 @@ import (
 
 func main() {
 	// Настраиваем логгер
-	app := config.SetupApplication()
+	slogavp.SetLogConsole(false)
+	app := slogavp.SetupApplication()
+
 	cfg := config.LoadConfig(app)
 
 	db, err := repository.NewOpenDB(cfg)

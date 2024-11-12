@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	slogavp "github.com/Anatoly8853/slog-avp/v2"
 	"go_final_project_avp/internal/config"
 	"go_final_project_avp/internal/tasks"
 
@@ -18,12 +19,12 @@ import (
 
 type Repository struct {
 	db  *sqlx.DB
-	app *config.Application
+	app *slogavp.Application
 }
 
 const limit = 50
 
-func NewRepository(db *sqlx.DB, app *config.Application) *Repository {
+func NewRepository(db *sqlx.DB, app *slogavp.Application) *Repository {
 	if db == nil {
 		app.Log.Fatal("Ошибка: подключение к базе данных не инициализировано")
 	}
@@ -70,28 +71,12 @@ func NewOpenDB(cfg config.Config) (db *sqlx.DB, err error) {
 func (r *Repository) RunMigrations(cfg config.Config) error {
 	dbfile := "internal/app/scheduler.db"
 
-	appPath, err := os.Executable()
-	if err != nil {
-		r.app.Log.Fatal(err)
-		return err
-	}
-
 	if len(cfg.DBFile) > 0 {
 		dbfile = cfg.DBFile
 	}
 
-	dbFile := filepath.Join(filepath.Dir(appPath), dbfile)
-	if _, err = os.Stat(dbFile); os.IsNotExist(err) {
+	if _, err := os.Stat(dbfile); os.IsNotExist(err) {
 		r.app.Log.Infof("Файл базы данных не найден, создаём новый: %s", cfg.DBFile)
-	}
-
-	var install bool
-	if err != nil {
-		install = true
-	}
-
-	if !install {
-		return err
 	}
 
 	ctx := context.Background()
@@ -102,7 +87,7 @@ func (r *Repository) RunMigrations(cfg config.Config) error {
      comment TEXT,
      repeat TEXT CHECK(LENGTH(repeat) <= 128)  -- строка до 128 символов
 );`
-	_, err = r.db.ExecContext(ctx, createTableScheduler)
+	_, err := r.db.ExecContext(ctx, createTableScheduler)
 	if err != nil {
 		return err
 	}

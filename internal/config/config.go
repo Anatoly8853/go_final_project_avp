@@ -1,27 +1,9 @@
 package config
 
 import (
-	"go_final_project_avp/internal/loggers"
-
-	"github.com/gookit/slog"
+	slogavp "github.com/Anatoly8853/slog-avp/v2"
 	"github.com/spf13/viper"
 )
-
-type Application struct {
-	Log *slog.Logger
-}
-
-func SetupApplication() *Application {
-	// Настройка логгера перед его инициализацией
-	loggers.SetLogConsole(false) // Логи будут записываться в файл
-	loggers.SetIsDebugMode(true)
-	loggers.SetIsInfoMode(true)
-	loggers.SetIsWarnMode(true)
-	// Настраиваем логгер
-	logger := loggers.SetupLogger()
-	// Создаем экземпляр Application с настроенным логгером
-	return &Application{Log: logger}
-}
 
 type Config struct {
 	Port      string `mapstructure:"TODO_PORT"`
@@ -30,7 +12,7 @@ type Config struct {
 	JwtSecret string `mapstructure:"TODO_JWT_SECRET"`
 }
 
-func LoadConfig(app *Application) (cfg Config) {
+func LoadConfig(app *slogavp.Application) (cfg Config) {
 	// Чтение файла app.env
 	viper.AddConfigPath(".")
 	viper.SetConfigName(".env")
